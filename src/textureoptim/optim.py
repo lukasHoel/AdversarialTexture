@@ -31,7 +31,7 @@ parser.add_argument("--initialized", type=int, default=1, help="")
 a = parser.parse_args()
 
 filename = a.input_dir.split('/')[-1]
-initial_file = a.input_dir + '/texture.png'
+initial_file = a.input_dir + '/texture.jpg'
 dataset = create_dataset(a.input_dir, initial_file, Cache=False)
 
 if not os.path.exists(a.output_dir):

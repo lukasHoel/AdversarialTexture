@@ -14,6 +14,7 @@ import random
 import collections
 from time import time
 from tensorflow.python.client import device_lib
+from PIL import Image
 
 Dataset = collections.namedtuple("Dataset", "color_src,color_tar,uv_src,mask")
 view_pairs = None
@@ -31,16 +32,20 @@ dictionary = {}
 cached = False
 def LoadDataByID(root, index):
     #if not index in dictionary:
-    color_src_img = root + '/%05d_color.png'%(index)
-    uv_src_img = root + '/%05d_uv.npz'%(index)
-    depth_src_img = root + '/%05d_depth.npz'%(index)
-    mask_src_img = root + '/%05d_mask.png'%(index)
+    color_src_img = root + '/%d.jpg'%(index)
+    uv_src_img = root + '/%d.npy'%(index)
+    depth_src_img = root + '/%d.png'%(index)
+    pose = root + '/%d.txt'%(index)
 
-    pose = root + '/%05d_pose.txt'%(index)
     color_src = cv2.imread(color_src_img) / 255.0
-    uv_src = np.load(uv_src_img)['arr_0']
-    depth_src = np.load(depth_src_img)['arr_0']
-    mask_src = cv2.imread(mask_src_img,cv2.IMREAD_UNCHANGED) / 255.0
+    uv_src = np.load(uv_src_img)
+    depth_src = Image.fromarray(np.asarray(Image.open(depth_src_img)) / 1000.0)
+
+    mask_src = np.asarray(uv_src)
+    mask_bool = mask_src[:, :, 0] != 0
+    mask_bool += mask_src[:, :, 1] != 0
+    mask_src = mask_bool
+
     world2cam = np.loadtxt(pose)
     return color_src.astype('float32'), uv_src.astype('float32'),\
         depth_src.astype('float32'), mask_src.astype('float32'),\
@@ -125,7 +130,7 @@ def LoadChunk(filename):
 
     color_src = (color_src * 2.0 - 1.0).astype('float32')
     color_tar_to_src = (color_tar_to_src * 2.0 - 1.0).astype('float32')
-    uv_src[:,:,1] = 1 - uv_src[:,:,1]
+    #uv_src[:,:,1] = 1 - uv_src[:,:,1]
     uv_src[:,:,0] *= tex_dim_width - 1
     uv_src[:,:,1] *= tex_dim_height - 1
 
@@ -167,7 +172,24 @@ def create_dataset(parent_dir, texture_name, Cache=False):
         p.append(i)
         view_pairs[i] = np.array(p,dtype='int32')
 
-    intrinsic = np.loadtxt(parent_dir + '/intrinsic.txt')
+    intrinsic = np.identity(4, dtype=np.float32)
+    file = parent_dir + '/intrinsic.txt'
+    with open(file) as f:
+        lines = f.readlines()
+        for l in lines:
+            l = l.strip()
+            if "fx_color" in l:
+                fx = float(l.split(" = ")[1])
+                intrinsic[0, 0] = fx
+            if "fy_color" in l:
+                fy = float(l.split(" = ")[1])
+                intrinsic[1, 1] = fy
+            if "mx_color" in l:
+                mx = float(l.split(" = ")[1])
+                intrinsic[0, 2] = mx
+            if "my_color" in l:
+                my = float(l.split(" = ")[1])
+                intrinsic[1, 2] = my
     intrinsic = np.reshape(intrinsic, [16])
 
     #color_paths = color_paths[:1]
