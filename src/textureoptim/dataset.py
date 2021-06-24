@@ -160,6 +160,8 @@ def create_dataset(parent_dir, texture_name, Cache=False):
 
     global view_pairs, intrinsic, kernel
     view_pairs = pickle.load(open(parent_dir + '/pose_pair.pkl','rb'))
+    if type(view_pairs) != type([]):
+        view_pairs = view_pairs.tolist()
 
     kernel = np.ones((11,11),np.uint8)
     color_paths = sorted(glob.glob(os.path.join(parent_dir, "*_color.png")))
