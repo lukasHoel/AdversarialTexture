@@ -164,7 +164,7 @@ def create_dataset(parent_dir, texture_name, Cache=False):
         view_pairs = view_pairs.tolist()
 
     kernel = np.ones((11,11),np.uint8)
-    color_paths = sorted(glob.glob(os.path.join(parent_dir, "*_color.png")))
+    color_paths = sorted(glob.glob(os.path.join(parent_dir, "*.jpg")))
 
     for i in range(len(view_pairs)):
         if type(view_pairs[i]) == type([]):
@@ -195,9 +195,10 @@ def create_dataset(parent_dir, texture_name, Cache=False):
     intrinsic = np.reshape(intrinsic, [16])
 
     #color_paths = color_paths[:1]
+    print(color_paths)
     dataset = tf.data.Dataset.from_tensor_slices(color_paths)
 
-    dataset = dataset.map(lambda filename: tf.py_func(LoadChunk, [filename],
+    dataset = dataset.map(lambda filename: tf.py_function(LoadChunk, [filename],
         [tf.float32, tf.float32, tf.float32, tf.float32]))
 
     dataset = dataset.repeat()
@@ -205,7 +206,7 @@ def create_dataset(parent_dir, texture_name, Cache=False):
     dataset = dataset.shuffle(1)
     dataset = dataset.prefetch(1)
 
-    iterator = dataset.make_one_shot_iterator()
+    iterator = tf.compat.v1.data.make_one_shot_iterator(dataset)
     next_element = iterator.get_next()
     color_src = next_element[0]
     color_tar = next_element[1]
