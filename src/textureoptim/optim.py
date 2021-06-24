@@ -18,6 +18,9 @@ from tensorflow.python.client import device_lib
 from dataset import *
 from model import *
 
+tf.config.threading.set_intra_op_parallelism_threads(2)
+tf.config.threading.set_inter_op_parallelism_threads(2)
+
 parser = argparse.ArgumentParser()
 parser.add_argument("--input_dir", type=str)
 parser.add_argument("--output_dir", type=str)

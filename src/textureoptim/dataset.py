@@ -24,8 +24,8 @@ kernel = None
 tex_dim_height = 1024
 tex_dim_width = 1024
 
-IMAGE_WIDTH = 640
-IMAGE_HEIGHT = 480
+IMAGE_WIDTH = 320
+IMAGE_HEIGHT = 240
 
 
 dictionary = {}
@@ -39,7 +39,8 @@ def LoadDataByID(root, index):
 
     color_src = cv2.imread(color_src_img) / 255.0
     uv_src = np.load(uv_src_img)
-    depth_src = Image.fromarray(np.asarray(Image.open(depth_src_img)) / 1000.0)
+    uv_src = cv2.resize(uv_src, (IMAGE_WIDTH, IMAGE_HEIGHT), interpolation=cv2.INTER_NEAREST)
+    depth_src = np.asarray(Image.open(depth_src_img)) / 1000.0
 
     mask_src = np.asarray(uv_src)
     mask_bool = mask_src[:, :, 0] != 0
@@ -56,13 +57,12 @@ def LoadChunk(filename):
     fn = filename
     if cached and (filename in dictionary):
         return dictionary[filename]
-    root = filename[:-16]
-    global view_pairs, intrinsic, kernel
 
-    if not isinstance(filename, str):
-        filename = filename.decode('utf-8')
-    index = int(filename[-15:-10])
-    root = filename[:-16]
+    filename = filename.decode("utf-8")
+    root, index = os.path.split(filename)
+    index = int(index.split(".")[0])
+
+    global view_pairs, intrinsic, kernel
 
     color_src, uv_src, depth_src, mask_src, world2cam_src\
         = LoadDataByID(root, index)
@@ -130,7 +130,7 @@ def LoadChunk(filename):
 
     color_src = (color_src * 2.0 - 1.0).astype('float32')
     color_tar_to_src = (color_tar_to_src * 2.0 - 1.0).astype('float32')
-    #uv_src[:,:,1] = 1 - uv_src[:,:,1]
+    uv_src[:,:,1] = 1 - uv_src[:,:,1]
     uv_src[:,:,0] *= tex_dim_width - 1
     uv_src[:,:,1] *= tex_dim_height - 1
 
@@ -164,7 +164,7 @@ def create_dataset(parent_dir, texture_name, Cache=False):
         view_pairs = view_pairs.tolist()
 
     kernel = np.ones((11,11),np.uint8)
-    color_paths = sorted(glob.glob(os.path.join(parent_dir, "*.jpg")))
+    color_paths = sorted([os.path.join(parent_dir, f) for f in os.listdir(parent_dir) if "texture" not in f and "jpg" in f])
 
     for i in range(len(view_pairs)):
         if type(view_pairs[i]) == type([]):
@@ -175,7 +175,7 @@ def create_dataset(parent_dir, texture_name, Cache=False):
         view_pairs[i] = np.array(p,dtype='int32')
 
     intrinsic = np.identity(4, dtype=np.float32)
-    file = parent_dir + '/intrinsic.txt'
+    file = parent_dir + '/intrinsic.txt2'
     with open(file) as f:
         lines = f.readlines()
         for l in lines:
@@ -195,10 +195,9 @@ def create_dataset(parent_dir, texture_name, Cache=False):
     intrinsic = np.reshape(intrinsic, [16])
 
     #color_paths = color_paths[:1]
-    print(color_paths)
     dataset = tf.data.Dataset.from_tensor_slices(color_paths)
 
-    dataset = dataset.map(lambda filename: tf.py_function(LoadChunk, [filename],
+    dataset = dataset.map(lambda filename: tf.py_func(LoadChunk, [filename],
         [tf.float32, tf.float32, tf.float32, tf.float32]))
 
     dataset = dataset.repeat()
@@ -206,7 +205,7 @@ def create_dataset(parent_dir, texture_name, Cache=False):
     dataset = dataset.shuffle(1)
     dataset = dataset.prefetch(1)
 
-    iterator = tf.compat.v1.data.make_one_shot_iterator(dataset)
+    iterator = dataset.make_one_shot_iterator()
     next_element = iterator.get_next()
     color_src = next_element[0]
     color_tar = next_element[1]
